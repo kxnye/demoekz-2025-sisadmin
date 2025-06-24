@@ -1,0 +1,134 @@
+Демонстрационный экзамен 09.02.06 2025
+
+Первое задание, присвоение имени устройству:
+	1. ISP: hostnamectl set-hostname isp; exec bash
+	ECO ROUTER:
+		enable
+		config
+		hostname HQ-RTR
+
+	Присвоение доменного имени (на ISP не задаем):
+		ip domain-name au-team.irpo
+		exit
+		write memory
+		reload
+
+	Присвоение доменного имени на других машинах:
+		hostnamectl set-hostname HQ-SRV.au-team.irpo; exec bash
+
+ifreload -a / systemctl restart networking
+
+Конфигурирование IPv4 + необходимое количество адресов
+
+	1. HQ-RTR:
+		show ip int brief
+		show port brief
+
+		enable, conf t
+		Настройка подключения к провайдеру:
+		
+		interface isp
+		description "Connect ISP"
+		ip address 172.16.4.14/28
+		exit
+		
+		do show port ge0
+		port ge0
+		service-instance ge0/isp
+		encapsulation untagged
+		connect ip interface isp
+		exit
+		exit
+		do show ip interface brief
+		show interface description
+
+		Local:
+		interface vl100
+		description "Servers VLAN 100"
+		ip address 192.168.100.1/26
+		exit
+
+		interface vl200
+		description "Clients VLAN 200"
+		ip address 192.168.100.65/28
+		exit
+
+		interface vl999
+		description "Managements VLAN 999"
+		ip address 192.168.100.81/29
+		exit
+
+		port te1
+		service-instance te1/vl100
+		encapsulation dot1q 100 exact
+		rewrite pop 1
+		connect ip interface vl100
+
+		service-instance te1/vl200
+		encapsulation dot1q 200 exact
+		rewrite pop 1
+		connect ip interface vl200
+
+		service-instance te1/vl999
+		encapsulation dot1q 999 exact
+		rewrite pop 1
+		connect ip interface vl999
+
+		exit, exit
+		wr memory
+
+		sh interface description
+		do sh ip interface brief
+		
+		ip route 0.0.0.0/0 172.16.4.1
+		wr memory
+
+		do show ip route static
+
+
+
+	2. BR-RTR
+		enable
+		show port brief
+		conf t
+		interface isp
+		description "Connect ISP"
+		ip address 172.16.5.14/28
+		exit
+		port ge0
+		service-instance ge0/isp
+		encapsulation untagged
+		connect ip interface isp
+		exit
+		exit
+		ip route 0.0.0.0/0 172.16.5.1
+		interface BR-Net
+		description "Connect BR-Net"
+		ip address 192.168.200.1/27
+		exit
+		port ge1
+		service-instance ge1/BR-Net
+		encapsulation untagged
+		connect ip interface BR-Net
+		exit
+		exit
+		wr memory
+		show interface description
+		show ip interface brief
+		show ip route
+		
+	3. HQ-SRV:
+		ip -c a
+		ls /etc/net/ifaces/
+		cat /etc/net/ifaces/ens18/options
+	Параметры options:
+		vim /etc/net/ifaces/ens18/options - оставить пустой файл
+		echo "192.168.100.2/26" > /etc/net/ifaces/ens18/ipv4address
+		echo "default via 192.168.100.1" > /etc/net/ifaces/ens18/ipv4route
+		echo "nameserver 77.88.8.8" > /etc/net/ifaces/ens18/resolv.conf
+		systemctl restart network
+		ip -c a
+		ip -c -r
+		cat /etc/resolv.conf
+		ping -c3 192.168.100.1
+		
